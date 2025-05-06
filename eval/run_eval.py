@@ -11,13 +11,13 @@ def parse_args():
     parser.add_argument(
         "--adata_pred",
         type=str,
-        default='/home/yhr/state-eval/adata_pred_subset.h5ad',
+        default='/large_storage/ctc/userspace/aadduri/mar5/replogle_hvg_sm/fold1/adata_pred.h5ad',
         help="Path to the predicted adata object to evaluate",
     )
     parser.add_argument(
         "--adata_true",
         type=str,
-        default='/home/yhr/state-eval/adata_real_subset.h5ad',
+        default='/large_storage/ctc/userspace/aadduri/mar5/replogle_hvg_sm/fold1/adata_real.h5ad',
         help="Path to the true adata object to evaluate against",
     )
     parser.add_argument(
