@@ -35,8 +35,6 @@ class MetricsEvaluator:
         self,
         adata_pred,
         adata_real,
-        adata_pred_gene=None,
-        adata_real_gene=None,
         embed_key=None,
         include_dist_metrics=False,
         control_pert="non-targeting",
@@ -53,9 +51,6 @@ class MetricsEvaluator:
         # Primary data
         self.adata_pred = adata_pred
         self.adata_real = adata_real
-
-        self.adata_pred_gene = adata_pred_gene
-        self.adata_real_gene = adata_real_gene
 
         # Configuration
         self.embed_key = embed_key
@@ -112,10 +107,6 @@ class MetricsEvaluator:
         # Extract control samples
         pred_ctrl = self._get_samples(self.adata_pred, celltype, self.control)
         real_ctrl = self._get_samples(self.adata_real, celltype, self.control)
-        pred_ctrl_gene = real_ctrl_gene = None
-        if self.adata_pred_gene is not None and self.adata_real_gene is not None:
-            pred_ctrl_gene = self._get_samples(self.adata_pred_gene, celltype, self.control)
-            real_ctrl_gene = self._get_samples(self.adata_real_gene, celltype, self.control)
 
         # Determine which perturbations to run (exclude control)
         all_perts = (
@@ -126,10 +117,6 @@ class MetricsEvaluator:
         # Group sample indices by perturbation for fast slicing
         pred_groups = self._group_indices(self.adata_pred, celltype)
         real_groups = self._group_indices(self.adata_real, celltype)
-        pred_gene_groups = real_gene_groups = None
-        if self.adata_pred_gene is not None and self.adata_real_gene is not None:
-            pred_gene_groups = self._group_indices(self.adata_pred_gene, celltype)
-            real_gene_groups = self._group_indices(self.adata_real_gene, celltype)
 
         # Differential expression metrics
         if self.de_metric:
@@ -152,9 +139,7 @@ class MetricsEvaluator:
     def _compute_for_pert(
         self, celltype, pert,
         pred_groups, real_groups,
-        pred_ctrl, real_ctrl,
-        pred_gene_groups, real_gene_groups,
-        pred_ctrl_gene, real_ctrl_gene
+        pred_ctrl, real_ctrl
     ):
 
         idx_pred = pred_groups.get(pert, [])
@@ -170,21 +155,6 @@ class MetricsEvaluator:
 
         # Compute basic metrics
         curr = self._compute_basic_metrics(Xp, Xt, Xc_t, Xc_p, suffix="cell_type")
-
-        # Gene-space metrics (counts)
-        if pred_gene_groups is not None and real_gene_groups is not None:
-            idx_pred_g = pred_gene_groups.get(pert, [])
-            idx_true_g = real_gene_groups.get(pert, [])
-            if idx_pred_g and idx_true_g:
-                Xp_g = to_dense(self.adata_pred_gene[idx_pred_g].X)
-                Xt_g = to_dense(self.adata_real_gene[idx_true_g].X)
-                Xc_t_g = to_dense(real_ctrl_gene.X)
-                Xc_p_g = to_dense(pred_ctrl_gene.X)
-                gene_m = self._compute_basic_metrics(
-                    Xp_g, Xt_g, Xc_t_g, Xc_p_g,
-                    suffix="cell_type_counts"
-                )
-                curr.update(gene_m)
 
         # Append to storage
         self.metrics[celltype]["pert"].append(pert)
@@ -205,14 +175,6 @@ class MetricsEvaluator:
         # Subset by celltype & relevant perts
         real_ct = self.adata_real[self.adata_real.obs[self.celltype_col] == celltype]
         pred_ct = self.adata_pred[self.adata_pred.obs[self.celltype_col] == celltype]
-        real_gene_ct = (
-            self.adata_real_gene[self.adata_real_gene.obs[self.celltype_col] == celltype]
-            if self.adata_real_gene is not None else None
-        )
-        pred_gene_ct = (
-            self.adata_pred_gene[self.adata_pred_gene.obs[self.celltype_col] == celltype]
-            if self.adata_pred_gene is not None else None
-        )
 
         # Perform DE
         (DE_true_fc, DE_pred_fc,
@@ -220,8 +182,8 @@ class MetricsEvaluator:
          DE_true_pval_fc, DE_pred_pval_fc,
          DE_true_sig_genes, DE_pred_sig_genes,
          DE_true_df, DE_pred_df) = compute_DE_for_truth_and_pred(
-            real_gene_ct or real_ct,
-            pred_gene_ct or pred_ct,
+            real_ct,
+            pred_ct,
             control_pert=self.control,
             pert_col=self.pert_col,
             n_top_genes=2000,
@@ -229,8 +191,12 @@ class MetricsEvaluator:
             outdir=self.outdir,
         )
 
+        # Prepare perturbation lists
+        perts = self.metrics[celltype]["pert"]
+
         # unlimited k
-        unlimited = compute_gene_overlap_cross_pert(DE_true_pval_fc, DE_pred_pval_fc, control_pert=self.control, k=-1)
+        unlimited = compute_gene_overlap_cross_pert(DE_true_pval_fc, DE_pred_pval_fc, 
+                                                    control_pert=self.control, k=-1)
         self.metrics[celltype]['DE_pval_fc_N'] = [unlimited.get(p, 0.0) for p in perts]
         self.metrics[celltype]['DE_pval_fc_avg_N'] = np.mean(list(unlimited.values()))
 

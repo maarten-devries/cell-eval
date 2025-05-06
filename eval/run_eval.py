@@ -23,7 +23,7 @@ def parse_args():
     parser.add_argument(
         "--eval_config",
         type=str,
-        default='/home/yhr/state-eval/config/eval_config.yaml',
+        default='/home/yhr/state-eval/config/replogle_config.yaml',
         help="If set, will load the config.yaml file from the output_dir and use it to set up the model.",
     )
     return parser.parse_args()
