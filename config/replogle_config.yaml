@@ -1,0 +1,9 @@
+include_dist_metrics: true
+control_pert: "non-targeting"
+pert_col: "pert_name"
+celltype_col: "celltype_name"
+output_space: "gene"
+shared_perts: null
+outdir: "./output"
+de_metric: true
+class_score: true
