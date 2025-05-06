@@ -79,7 +79,8 @@ class MetricsEvaluator:
         for celltype in self.pred_celltype_perts:
             self.metrics[celltype] = defaultdict(list)
             self._compute_for_celltype(celltype)
-        return self._finalize_metrics()
+        self.metrics = self._finalize_metrics()
+        return self.metrics
 
     def _validate_celltypes(self):
         # Gather perturbations per celltype for pred and real
@@ -117,6 +118,11 @@ class MetricsEvaluator:
         # Group sample indices by perturbation for fast slicing
         pred_groups = self._group_indices(self.adata_pred, celltype)
         real_groups = self._group_indices(self.adata_real, celltype)
+        for pert in tqdm(all_perts, desc=f"Metrics: {celltype}", leave=False):
+            if pert == self.control:
+                continue
+            else:
+                self.metrics[celltype]["pert"].append(pert)
 
         # Differential expression metrics
         if self.de_metric:
@@ -217,6 +223,26 @@ class MetricsEvaluator:
             out[ct] = pd.DataFrame(data).set_index('pert')
         return out
     
+    def save_metrics_per_celltype(self, metrics=None, average=False):
+        """
+        Save the metrics per cell type to a CSV file.
+        """
+        if metrics is None:
+            metrics = self.metrics
+
+        for celltype, df in metrics.items():
+            # Compute average metrics if requested
+            if average:
+                df = df.mean().to_frame().T
+                df.index = [celltype]
+
+            if average:
+                outpath = os.path.join(self.outdir, f"{celltype}_metrics_avg.csv")
+            else:
+                outpath = os.path.join(self.outdir, f"{celltype}_metrics.csv")
+            df.to_csv(outpath, index=True)
+
+    
 def init_worker(global_pred_df, global_true_df):
     global PRED_DF
     global TRUE_DF
@@ -256,4 +282,3 @@ def get_batched_mean(X, batches):
 
     df["batch"] = batches
     return df.groupby("batch").mean(numeric_only=True)
-

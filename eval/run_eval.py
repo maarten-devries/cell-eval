@@ -11,13 +11,13 @@ def parse_args():
     parser.add_argument(
         "--adata_pred",
         type=str,
-        default='/large_storage/ctc/userspace/aadduri/mar5/replogle_hvg_sm/fold1/adata_pred.h5ad',
+        default='/home/yhr/state-eval/adata_pred_subset.h5ad',
         help="Path to the predicted adata object to evaluate",
     )
     parser.add_argument(
         "--adata_true",
         type=str,
-        default='/large_storage/ctc/userspace/aadduri/mar5/replogle_hvg_sm/fold1/adata_real.h5ad',
+        default='/home/yhr/state-eval/adata_true_subset.h5ad',
         help="Path to the true adata object to evaluate against",
     )
     parser.add_argument(
@@ -62,6 +62,8 @@ def main():
 
     # Compute the metrics
     metrics = evaluator.compute()
+    evaluator.save_metrics_per_celltype(metrics, average=True)
+
     print("Done")
 
 if __name__ == "__main__":
