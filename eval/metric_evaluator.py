@@ -21,7 +21,6 @@ from scipy.stats import pearsonr
 import scanpy as sc
 import anndata as ad
 from tqdm import tqdm
-import torch.nn.functional as F
 import pandas as pd
 import os
 
