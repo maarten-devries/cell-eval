@@ -250,12 +250,13 @@ class MetricsEvaluator:
                 celltype, pert, pred_groups, real_groups, pred_ctrl, real_ctrl
             )
 
-        # Differential expression metrics
-        if self.de_metric:
-            self._compute_de_metrics(celltype)
         # Classification score
         if self.class_score:
             self._compute_class_score(celltype)
+
+        # Differential expression metrics
+        if self.de_metric:
+            self._compute_de_metrics(celltype)
 
     def _get_samples(self, adata: ad.AnnData, celltype: str, pert: str) -> ad.AnnData:
         """Isolate the samples for a specific cell type and perturbation."""
@@ -487,7 +488,11 @@ class MetricsEvaluator:
         ct_real = self.adata_real[self.adata_real.obs[self.celltype_col] == celltype]
         ct_pred = self.adata_pred[self.adata_pred.obs[self.celltype_col] == celltype]
         score = compute_perturbation_ranking_score(
-            ct_pred, ct_real, pert_col=self.pert_col, ctrl_pert=self.control
+            ct_pred,
+            ct_real,
+            pert_col=self.pert_col,
+            ctrl_pert=self.control,
+            embed_key=self.embed_key,
         )
         self.metrics[celltype]["pert_discrimination_id"] = score
         self.metrics[celltype]["pert_discrimination_score"] = 1 - score

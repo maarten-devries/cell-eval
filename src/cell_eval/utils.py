@@ -466,11 +466,23 @@ def compute_downstream_DE_metrics(
 
 
 def compute_mean_perturbation_effect(
-    adata: ad.AnnData, pert_col: str = "gene", ctrl_pert: str = "non-targeting"
+    adata: ad.AnnData,
+    pert_col: str = "gene",
+    ctrl_pert: str = "non-targeting",
+    embed_key: str = None,
 ) -> pd.DataFrame:
-    df = adata.to_df()
-    df["pert"] = adata.obs[pert_col].values
-    mean_df = df.groupby("pert").mean()
+    if embed_key is None:
+        # Use gene expression space (.X)
+        df = adata.to_df()
+        df["pert"] = adata.obs[pert_col].values
+        mean_df = df.groupby("pert").mean()
+    else:
+        # Use embedding space (.obsm[embed_key])
+        embed_data = adata.obsm[embed_key]
+        df = pd.DataFrame(embed_data)
+        df["pert"] = adata.obs[pert_col].values
+        mean_df = df.groupby("pert").mean()
+
     return (mean_df - mean_df.loc[ctrl_pert]).abs()
 
 
@@ -497,46 +509,56 @@ def compute_perturbation_ranking_score(
     adata_real: ad.AnnData,
     pert_col: str = "gene",
     ctrl_pert: str = "non-targeting",
+    embed_key: str = None,
 ) -> float:
     # Calculate mean perturbation effect across real and predicted
-    me_r = compute_mean_perturbation_effect(adata_real, pert_col, ctrl_pert)
-    me_p = compute_mean_perturbation_effect(adata_pred, pert_col, ctrl_pert)
+    me_r = compute_mean_perturbation_effect(adata_real, pert_col, ctrl_pert, embed_key)
+    me_p = compute_mean_perturbation_effect(adata_pred, pert_col, ctrl_pert, embed_key)
 
     # determine perturbation names
     perts = me_r.index.values
 
-    # determine gene names
-    gene_names = adata_real.var_names.values
-
     ranks = []
-
     n_skip = 0
+
     for p in perts:
         # skip control
         if p == ctrl_pert:
             n_skip += 1
             continue
 
-        # determine all non-target genes
-        include_mask = np.flatnonzero(gene_names != p)
+        if embed_key is None:
+            # In gene expression space: exclude the target gene
+            gene_names = adata_real.var_names.values
+            include_mask = np.flatnonzero(gene_names != p)
 
-        # select real and pred
-        subset_mean_real = me_r.loc[p].values.reshape(1, -1)
-        subset_mean_pred = me_p.values
+            # select real and pred with gene masking
+            subset_mean_real = me_r.loc[p].values.reshape(1, -1)
+            subset_mean_pred = me_p.values
 
-        # evaluate similarity
-        sim = cosine_similarity(
-            subset_mean_real[:, include_mask],
-            subset_mean_pred[:, include_mask],
-        ).flatten()
+            # evaluate similarity excluding target gene
+            sim = cosine_similarity(
+                subset_mean_real[:, include_mask],
+                subset_mean_pred[:, include_mask],
+            ).flatten()
+        else:
+            # In embedding space: use all dimensions (no gene masking)
+            subset_mean_real = me_r.loc[p].values.reshape(1, -1)
+            subset_mean_pred = me_p.values
 
-        # sort by ascending similarity
+            # evaluate similarity using all embedding dimensions
+            sim = cosine_similarity(
+                subset_mean_real,
+                subset_mean_pred,
+            ).flatten()
+
+        # sort by descending similarity (highest first)
         sorted_rev = np.argsort(sim)[::-1]
 
         # determine true perturbation index
         p_index = np.flatnonzero(perts == p)[0]
 
-        # calculate rank
+        # calculate rank (0-indexed)
         rank = np.flatnonzero(sorted_rev == p_index)[0]
 
         ranks.append(rank)
