@@ -193,6 +193,52 @@ def _generic_evaluation(
 
     return res
 
+def apply_pca_to_effects(real_effects, pred_effects, n_components=50, scale=True):
+    """
+    Apply PCA dimensionality reduction to perturbation effects.
+    
+    Parameters:
+    -----------
+    real_effects : np.ndarray
+        Real perturbation effects (n_perturbations, n_features)
+    pred_effects : np.ndarray  
+        Predicted perturbation effects (n_perturbations, n_features)
+    n_components : int
+        Number of PCA components
+    scale : bool
+        Whether to standardize the data
+    
+    Returns:
+    --------
+    tuple of (real_effects_pca, pred_effects_pca)
+    """
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.decomposition import PCA
+    
+    # Convert to dense if sparse
+    if hasattr(real_effects, 'toarray'):
+        real_effects = real_effects.toarray()
+    if hasattr(pred_effects, 'toarray'):
+        pred_effects = pred_effects.toarray()
+    
+    # Fit scaler on real effects only
+    if scale:
+        scaler = StandardScaler()
+        real_effects_scaled = scaler.fit_transform(real_effects)
+        pred_effects_scaled = scaler.transform(pred_effects)  # Use real effects scaler
+    else:
+        real_effects_scaled = real_effects
+        pred_effects_scaled = pred_effects
+    
+    # Fit PCA on real effects only
+    pca = PCA(n_components=n_components)
+    real_effects_pca = pca.fit_transform(real_effects_scaled)
+    
+    # Transform pred effects using real effects PCA
+    pred_effects_pca = pca.transform(pred_effects_scaled)
+    
+    return real_effects_pca, pred_effects_pca
+
 
 class ClusteringAgreement:
     """Compute clustering agreement between real and predicted perturbation centroids."""
