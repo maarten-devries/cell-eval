@@ -118,6 +118,31 @@ class MetricsEvaluator:
         if skip_metrics is not None:
             pipeline.skip_metrics(skip_metrics)
         pipeline.compute_de_metrics(self.de_comparison)
+        from sklearn.metrics import precision_recall_curve, roc_curve
+        # Build binary labels and scores
+        labeled_real = (
+            self.de_comparison.real.data
+            .with_columns((pl.col("fdr") < 0.05).cast(pl.Float32).alias("label"))
+            .select(pl.col("target", "feature", "label"))
+        )
+        merged = (
+            self.de_comparison.pred.data
+            .select(pl.col("target", "feature", "fdr"))
+            .join(labeled_real, on=["target", "feature"], how="inner", coalesce=True)
+            .with_columns(nlp=-np.log10(pl.col("fdr").replace(0, 1e-10)))
+        )
+        labels = merged["label"].to_numpy()
+        scores = merged["nlp"].to_numpy()
+        pr, rec, _ = precision_recall_curve(labels, scores)
+        fpr, tpr, _ = roc_curve(labels, scores)
+        # Determine filename prefix from evaluator.prefix (cell type)
+        prefix_str = f"{self.prefix}_" if self.prefix else ""
+        # Save arrays with cell type prefix
+        np.save(os.path.join(self.outdir, f"{prefix_str}pr_precision.npy"), pr)
+        np.save(os.path.join(self.outdir, f"{prefix_str}pr_recall.npy"), rec)
+        np.save(os.path.join(self.outdir, f"{prefix_str}roc_fpr.npy"), fpr)
+        np.save(os.path.join(self.outdir, f"{prefix_str}roc_tpr.npy"), tpr)
+
         pipeline.compute_anndata_metrics(self.anndata_pair)
         results = pipeline.get_results()
         agg_results = pipeline.get_agg_results()

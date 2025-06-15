@@ -145,6 +145,7 @@ def run_evaluation(args: ap.Namespace):
             f"Number of celltypes in real and pred anndata must match: {len(real_split)} != {len(pred_split)}"
         )
 
+        pdex_kwargs = dict(exp_post_agg=True, is_log1p=True)
         for ct in real_split.keys():
             real_ct = real_split[ct]
             pred_ct = pred_split[ct]
@@ -161,14 +162,14 @@ def run_evaluation(args: ap.Namespace):
                 batch_size=args.batch_size,
                 outdir=args.outdir,
                 allow_discrete=args.allow_discrete,
+                pdex_kwargs=pdex_kwargs,
                 prefix=ct,
             )
-            results = evaluator.compute(
+            evaluator.compute(
                 profile=args.profile,
                 metric_configs=metric_kwargs,
                 skip_metrics=skip_metrics,
             )
-            results.write_csv(os.path.join(args.outdir, f"{ct}_results.csv"))
 
     else:
         evaluator = MetricsEvaluator(
