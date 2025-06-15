@@ -185,9 +185,8 @@ def run_evaluation(args: ap.Namespace):
             outdir=args.outdir,
             allow_discrete=args.allow_discrete,
         )
-        results = evaluator.compute(
+        evaluator.compute(
             profile=args.profile,
             metric_configs=metric_kwargs,
             skip_metrics=skip_metrics,
         )
-        results.write_csv(os.path.join(args.outdir, "results.csv"))
