@@ -13,10 +13,10 @@ Distribution with [`uv`](https://docs.astral.sh/uv/)
 uv pip install -U cell-eval
 
 # install from github directly
-uv pip install -U git+ssh://github.com/arcinstitute/cell-eval
+uv pip install -U git+https://github.com/arcinstitute/cell-eval
 
 # install cli with uv tool
-uv tool install -U git+ssh://github.com/arcinstitute/cell-eval
+uv tool install -U git+https://github.com/arcinstitute/cell-eval
 
 # Check installation
 cell-eval --help
