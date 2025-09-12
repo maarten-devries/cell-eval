@@ -62,14 +62,6 @@ def _optimized_pairwise_distances_mean(
     n_samples = data.shape[0]
     original_n_samples = n_samples
     
-    # For very large datasets, use sampling even with GPU
-    if n_samples > max_samples:
-        logger.info(f"Sampling {max_samples} cells from {n_samples} for sigma computation")
-        np.random.seed(random_state)
-        indices = np.random.choice(n_samples, max_samples, replace=False)
-        data = data[indices]
-        n_samples = max_samples
-    
     # Try CUML GPU acceleration first
     if CUML_AVAILABLE and use_gpu:
         try:
