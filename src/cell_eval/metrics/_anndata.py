@@ -1,6 +1,7 @@
 """Array metrics module."""
 
 from logging import getLogger
+import time
 from typing import Callable, Literal, Sequence
 
 import anndata as ad
@@ -191,13 +192,33 @@ def edistance(
         precomp_sigma_y: float | None = None,
         **kwargs,
     ) -> float:
-        sigma_x = skm.pairwise_distances(x, metric=metric, **kwargs).mean()
+        # Use optimized GPU version for sigma_x computation
+        sigma_x = _optimized_pairwise_distances_mean(x, metric=metric, **kwargs)
         sigma_y = (
             precomp_sigma_y
             if precomp_sigma_y is not None
-            else skm.pairwise_distances(y, metric=metric, **kwargs).mean()
+            else _optimized_pairwise_distances_mean(y, metric=metric, **kwargs)
         )
-        delta = skm.pairwise_distances(x, y, metric=metric, **kwargs).mean()
+        
+        # Compute cross-distance delta using GPU if available
+        if CUML_AVAILABLE:
+            try:
+                import cupy as cp
+                # Convert to GPU arrays
+                gpu_x = cp.asarray(x.astype(np.float32) if x.dtype != np.float32 else x)
+                gpu_y = cp.asarray(y.astype(np.float32) if y.dtype != np.float32 else y)
+                # Compute cross-distances on GPU
+                gpu_distances = cuml_pairwise_distances(gpu_x, gpu_y, metric=metric, **kwargs)
+                delta = float(cp.mean(gpu_distances))
+                # Clean up GPU memory
+                del gpu_x, gpu_y, gpu_distances
+                cp.get_default_memory_pool().free_all_blocks()
+            except Exception as e:
+                logger.warning(f"GPU cross-distance failed: {e}. Using CPU fallback.")
+                delta = skm.pairwise_distances(x, y, metric=metric, **kwargs).mean()
+        else:
+            delta = skm.pairwise_distances(x, y, metric=metric, **kwargs).mean()
+        
         return 2 * delta - sigma_x - sigma_y
 
     d_real = np.zeros(data.perts.size)
@@ -205,15 +226,23 @@ def edistance(
 
     # Precompute sigma for control data (reused by all perturbations)
     logger.info("Precomputing sigma for control data (real)")
+    real_start = time.time()
     precomp_sigma_real = _optimized_pairwise_distances_mean(
         data.ctrl_matrix(which="real", embed_key=embed_key), metric=metric, **kwargs
     )
+    real_elapsed = time.time() - real_start
+    logger.info(f"✓ Real control sigma precomputation completed in {real_elapsed:.2f} seconds")
 
     logger.info("Precomputing sigma for control data (pred)")
+    pred_start = time.time()
     precomp_sigma_pred = _optimized_pairwise_distances_mean(
         data.ctrl_matrix(which="pred", embed_key=embed_key), metric=metric, **kwargs
     )
+    pred_elapsed = time.time() - pred_start
+    logger.info(f"✓ Pred control sigma precomputation completed in {pred_elapsed:.2f} seconds")
 
+    logger.info(f"Computing e-distance for {data.perts.size} perturbations")
+    edist_start = time.time()
     for idx, delta in enumerate(data.iter_cell_arrays(embed_key=embed_key)):
         d_real[idx] = _edistance(
             delta.pert_real,
@@ -229,6 +258,8 @@ def edistance(
             metric=metric,
             **kwargs,
         )
+    edist_elapsed = time.time() - edist_start
+    logger.info(f"✓ E-distance computation for all perturbations completed in {edist_elapsed:.2f} seconds")
 
     return pearsonr(d_real, d_pred).correlation
 
