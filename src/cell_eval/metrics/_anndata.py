@@ -72,7 +72,7 @@ def _optimized_pairwise_distances_mean(
                 data = data.toarray()
             
             # Ensure data is in the right dtype for GPU processing
-            if data.dtype == np.object_ or data.dtype == np.object:
+            if data.dtype == np.object_ or data.dtype == object:
                 logger.warning(f"Data has object dtype {data.dtype}, converting to float32")
                 data = data.astype(np.float32)
             elif not np.issubdtype(data.dtype, np.floating):
