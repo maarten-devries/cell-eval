@@ -204,12 +204,25 @@ def edistance(
         if CUML_AVAILABLE:
             try:
                 import cupy as cp
+                
+                # Ensure arrays are dense and proper dtype
+                if hasattr(x, 'toarray'):
+                    x = x.toarray()
+                if hasattr(y, 'toarray'):
+                    y = y.toarray()
+                
+                # Force conversion to float32 numpy arrays first
+                x_float = np.asarray(x, dtype=np.float32)
+                y_float = np.asarray(y, dtype=np.float32)
+                
                 # Convert to GPU arrays
-                gpu_x = cp.asarray(x.astype(np.float32) if x.dtype != np.float32 else x)
-                gpu_y = cp.asarray(y.astype(np.float32) if y.dtype != np.float32 else y)
-                # Compute cross-distances on GPU
-                gpu_distances = cuml_pairwise_distances(gpu_x, gpu_y, metric=metric, **kwargs)
+                gpu_x = cp.asarray(x_float)
+                gpu_y = cp.asarray(y_float)
+                
+                # Compute cross-distances on GPU (don't pass kwargs as they might have incompatible types)
+                gpu_distances = cuml_pairwise_distances(gpu_x, gpu_y, metric=metric)
                 delta = float(cp.mean(gpu_distances))
+                
                 # Clean up GPU memory
                 del gpu_x, gpu_y, gpu_distances
                 cp.get_default_memory_pool().free_all_blocks()
