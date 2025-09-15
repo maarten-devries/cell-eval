@@ -67,6 +67,17 @@ def _optimized_pairwise_distances_mean(
         try:
             import cupy as cp
             
+            # Convert sparse matrices to dense before GPU conversion
+            if hasattr(data, 'toarray'):
+                data = data.toarray()
+            
+            # Ensure data is in the right dtype for GPU processing
+            if data.dtype == np.object_ or data.dtype == np.object:
+                logger.warning(f"Data has object dtype {data.dtype}, converting to float32")
+                data = data.astype(np.float32)
+            elif not np.issubdtype(data.dtype, np.floating):
+                data = data.astype(np.float32)
+            
             # Convert to GPU array
             gpu_data = cp.asarray(data)
             logger.info(f"Using CUML GPU acceleration for {n_samples} cells")
