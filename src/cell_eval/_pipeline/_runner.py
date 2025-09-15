@@ -1,4 +1,5 @@
 import logging
+import time
 from typing import Any, Callable, Literal
 
 import polars as pl
@@ -155,10 +156,13 @@ class MetricPipeline:
     ):
         """Compute a specific metric."""
         try:
+            start_time = time.time()
             logger.info(f"Computing metric '{name}'")
             # Get any runtime config for this metric
             runtime_config = self._metric_configs.get(name, {})
             value = metrics_registry.compute(name, data, kwargs=runtime_config)
+            elapsed_time = time.time() - start_time
+            logger.info(f"✓ Metric '{name}' completed in {elapsed_time:.2f} seconds")
             if isinstance(value, dict):
                 # Add each perturbation result separately
                 for pert, pert_value in value.items():
@@ -192,26 +196,45 @@ class MetricPipeline:
                         )
                     )
         except Exception as error:
-            logger.error(f"Error computing metric '{name}': {error}")
+            elapsed_time = time.time() - start_time
+            logger.error(f"❌ Metric '{name}' failed after {elapsed_time:.2f} seconds: {error}")
             if self._break_on_error:
                 raise error
 
     def compute_de_metrics(self, data: DEComparison) -> None:
         """Compute DE metrics."""
+        de_metrics = [name for name in self._metrics if name in metrics_registry.list_metrics(MetricType.DE)]
+        if de_metrics:
+            logger.info(f"Computing {len(de_metrics)} DE metrics: {de_metrics}")
+            de_start_time = time.time()
+        
         for name in self._metrics:
             if name not in metrics_registry.list_metrics(MetricType.DE):
                 continue
             self._compute_metric(name, data)
+        
+        if de_metrics:
+            de_elapsed = time.time() - de_start_time
+            logger.info(f"✓ All DE metrics completed in {de_elapsed:.2f} seconds")
 
     def compute_anndata_metrics(
         self,
         data: PerturbationAnndataPair,
     ) -> None:
         """Compute perturbation metrics."""
+        anndata_metrics = [name for name in self._metrics if name in metrics_registry.list_metrics(MetricType.ANNDATA_PAIR)]
+        if anndata_metrics:
+            logger.info(f"Computing {len(anndata_metrics)} AnnData metrics: {anndata_metrics}")
+            anndata_start_time = time.time()
+        
         for name in self._metrics:
             if name not in metrics_registry.list_metrics(MetricType.ANNDATA_PAIR):
                 continue
             self._compute_metric(name, data)
+        
+        if anndata_metrics:
+            anndata_elapsed = time.time() - anndata_start_time
+            logger.info(f"✓ All AnnData metrics completed in {anndata_elapsed:.2f} seconds")
 
     def get_results(self) -> pl.DataFrame:
         """Get results as a DataFrame."""
