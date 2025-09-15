@@ -101,7 +101,21 @@ def _optimized_pairwise_distances_mean(
             return result
             
         except Exception as e:
-            logger.warning(f"CUML GPU computation failed: {e}. Falling back to CPU.")
+            # Check if GPU is available - if so, error out instead of falling back
+            try:
+                import cupy as cp
+                # If we can create a GPU array, GPU is available
+                test_gpu = cp.array([1.0])
+                gpu_available = True
+                del test_gpu
+            except:
+                gpu_available = False
+            
+            if gpu_available:
+                logger.error(f"CUML GPU computation failed but GPU is available: {e}")
+                raise RuntimeError(f"CUML GPU computation failed but GPU is available. This should not happen: {e}")
+            else:
+                logger.warning(f"CUML GPU computation failed: {e}. Falling back to CPU.")
     
     # CPU fallbacks
     # For euclidean distance on medium-sized datasets, use scipy.pdist (more efficient)
